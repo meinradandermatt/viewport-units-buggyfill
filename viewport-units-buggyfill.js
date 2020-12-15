@@ -1,5 +1,5 @@
 /*!
- * viewport-units-buggyfill v0.6.2
+ * viewport-units-buggyfill v0.6.3
  * @web: https://github.com/rodneyrehm/viewport-units-buggyfill/
  * @author: Rodney Rehm - http://rodneyrehm.de/en/
  */
@@ -30,11 +30,14 @@
     var urlExpression = /(https?:)?\/\//
     var forEach = [].forEach;
     var dimensions;
+    var vh;
+    var vw;
     var declarations;
     var styleNode;
     var isBuggyIE = /MSIE [0-9]\./i.test(userAgent);
     var isOldIE = /MSIE [0-8]\./i.test(userAgent);
     var isOperaMini = userAgent.indexOf('Opera Mini') > -1;
+    var documentToAnalyse
 
     var isMobileSafari = /(iPhone|iPod|iPad).+AppleWebKit/i.test(userAgent) && (function() {
       // Regexp for iOS-version tested against the following userAgent strings:
@@ -88,7 +91,7 @@
           detail: undefined,
         };
 
-        evt = document.createEvent('CustomEvent');
+        evt = documentToAnalyse.createEvent('CustomEvent');
         evt.initCustomEvent(event, params.bubbles, params.cancelable, params.detail);
         return evt;
       };
@@ -119,10 +122,16 @@
       }
     }
 
+    function reset () {
+      initialized = false
+    }
+
     function initialize(initOptions) {
       if (initialized) {
         return;
       }
+
+      documentToAnalyse = initOptions.document || document
 
       if (initOptions === true) {
         initOptions = {
@@ -159,9 +168,9 @@
       options.hacks && options.hacks.initialize(options);
 
       initialized = true;
-      styleNode = document.createElement('style');
+      styleNode = documentToAnalyse.createElement('style');
       styleNode.id = 'patched-viewport';
-      document[options.appendToBody ? 'body' : 'head'].appendChild(styleNode);
+      documentToAnalyse[options.appendToBody ? 'body' : 'head'].appendChild(styleNode);
 
       // Issue #6: Cross Origin Stylesheets are not accessible through CSSOM,
       // therefore download and inject them as <style> to circumvent SOP.
@@ -227,7 +236,7 @@
 
     function findProperties() {
       declarations = [];
-      forEach.call(document.styleSheets, function(sheet) {
+      forEach.call(documentToAnalyse.styleSheets, function(sheet) {
         var cssRules = processStylesheet(sheet);
 
         if (!cssRules || sheet.ownerNode.id === 'patched-viewport' || sheet.ownerNode.getAttribute('data-viewport-units-buggyfill') === 'ignore') {
@@ -392,8 +401,17 @@
     }
 
     function getViewport() {
-      var vh = window.innerHeight;
-      var vw = window.innerWidth;
+      return {
+        vh: vh || window.innerHeight,
+        vw: vw || window.innerWidth,
+        vmax: Math.max(vw, vh),
+        vmin: Math.min(vw, vh),
+      };
+    }
+
+    function setViewport({viewheight, viewwidth}) {
+      vh = viewheight || window.innerHeight;
+      vw = viewwidth || window.innerWidth;
 
       return {
         vh: vh,
@@ -412,7 +430,7 @@
         }
       };
 
-      forEach.call(document.styleSheets, function(sheet) {
+      forEach.call(documentToAnalyse.styleSheets, function(sheet) {
         if (!sheet.href || origin(sheet.href) === origin(location.href) || sheet.ownerNode.getAttribute('data-viewport-units-buggyfill') === 'ignore') {
           // skip <style> and <link> from same origin or explicitly declared to ignore
           return;
@@ -433,7 +451,7 @@
 
     function convertLinkToStyle(link, next) {
       getCors(link.href, function() {
-        var style = document.createElement('style');
+        var style = documentToAnalyse.createElement('style');
         style.media = link.media;
         style.setAttribute('data-href', link.href);
         style.textContent = this.responseText;
@@ -462,11 +480,13 @@
     }
 
     return {
-      version: '0.6.1',
+      version: '0.6.3',
       findProperties: findProperties,
       getCss: getReplacedViewportUnits,
       init: initialize,
       refresh: refresh,
+      setViewport: setViewport,
+      reset: reset
     };
   }));
 })();
